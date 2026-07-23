@@ -1785,6 +1785,15 @@
                                 onclick="launchQuickRevision('errors')" style="margin-top:10px;" disabled>
                                 Réviser uniquement mes erreurs
                             </button>
+                            <div style="display:flex; gap: 8px; margin-top: 15px; border-top: 1px solid var(--border); padding-top: 15px;">
+                                <button class="diff-btn" onclick="exportProgress()" style="flex: 1; font-size: 0.75rem; display: flex; align-items: center; justify-content: center; gap: 4px;">
+                                    <span>📤 Exporter</span>
+                                </button>
+                                <button class="diff-btn" onclick="triggerImport()" style="flex: 1; font-size: 0.75rem; display: flex; align-items: center; justify-content: center; gap: 4px;">
+                                    <span>📥 Importer</span>
+                                </button>
+                                <input type="file" id="import-file-input" style="display: none;" accept=".json" onchange="importProgress(event)">
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -2016,7 +2025,14 @@
         </footer>
     </div>
 
-    <script src="questions.js"></script>
+    <script src="questions/case_studies.js"></script>
+    <script src="questions/identity.js"></script>
+    <script src="questions/exchange.js"></script>
+    <script src="questions/defender.js"></script>
+    <script src="questions/intune.js"></script>
+    <script src="questions/compliance.js"></script>
+    <script src="questions/tenant.js"></script>
+    <script src="questions/powershell.js"></script>
     <script>
         // GLOBAL STATE VARIABLES
         let activeTheme = 'dark';
@@ -2025,6 +2041,7 @@
         let selectedCategories = [];
         let mixQuestionsRandomly = true;
 
+        let questions = [];
         let activeQuestions = [];
         let currentQuestionIndex = 0;
 
@@ -2048,6 +2065,17 @@
 
         // INIT METHOD
         window.addEventListener('DOMContentLoaded', () => {
+            questions = [
+                ...(window.questionsCaseStudies || []),
+                ...(window.questionsIdentity || []),
+                ...(window.questionsExchange || []),
+                ...(window.questionsDefender || []),
+                ...(window.questionsIntune || []),
+                ...(window.questionsCompliance || []),
+                ...(window.questionsTenant || []),
+                ...(window.questionsPowershell || [])
+            ];
+
             loadLocalStorage();
             detectTheme();
             initCategoryChecklist();
@@ -2086,6 +2114,56 @@
             } catch (e) {
                 console.error("Erreur lors de la sauvegarde dans le LocalStorage", e);
             }
+        }
+
+        // EXPORT / IMPORT PROGRESS BACKUP
+        function exportProgress() {
+            const backupData = {
+                version: "1.0",
+                ms102_spaced_rep: localSpacedRep,
+                ms102_favorites: localFavorites,
+                ms102_history: localHistory
+            };
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backupData, null, 2));
+            const downloadAnchor = document.createElement('a');
+            downloadAnchor.setAttribute("href", dataStr);
+            downloadAnchor.setAttribute("download", "ms102_progress_backup.json");
+            document.body.appendChild(downloadAnchor);
+            downloadAnchor.click();
+            downloadAnchor.remove();
+        }
+
+        function triggerImport() {
+            document.getElementById('import-file-input').click();
+        }
+
+        function importProgress(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = JSON.parse(e.target.result);
+                    if (data.ms102_spaced_rep || data.ms102_favorites || data.ms102_history) {
+                        if (data.ms102_spaced_rep) localSpacedRep = data.ms102_spaced_rep;
+                        if (data.ms102_favorites) localFavorites = data.ms102_favorites;
+                        if (data.ms102_history) localHistory = data.ms102_history;
+                        
+                        saveLocalStorage();
+                        renderDashboard();
+                        updateCountSummary();
+                        alert("Progression importée avec succès !");
+                    } else {
+                        alert("Le fichier sélectionné ne semble pas être une sauvegarde valide.");
+                    }
+                } catch (err) {
+                    alert("Erreur lors de la lecture du fichier JSON de sauvegarde.");
+                    console.error(err);
+                }
+            };
+            reader.readAsText(file);
+            event.target.value = "";
         }
 
         // THEME SWITCHER
@@ -2240,12 +2318,80 @@
             }
         }
 
+        // Procedural question generator engine
+        function resolveProceduralQuestions(questionsList) {
+            return questionsList.map(q => {
+                if (!q.templated || !q.variables) return q;
+
+                // Deep copy the question object
+                let resolved = JSON.parse(JSON.stringify(q));
+                
+                // Select a value for each variable
+                let chosenVars = {};
+                for (let varName in resolved.variables) {
+                    const options = resolved.variables[varName];
+                    const randomIndex = Math.floor(Math.random() * options.length);
+                    chosenVars[varName] = options[randomIndex];
+                }
+
+                // Helper function to replace placeholders in a string
+                function replaceVars(str) {
+                    if (typeof str !== 'string') return str;
+                    for (let varName in chosenVars) {
+                        const regex = new RegExp(`{${varName}}`, 'g');
+                        str = str.replace(regex, chosenVars[varName]);
+                    }
+                    return str;
+                }
+
+                // Replace in question statement
+                resolved.q = replaceVars(resolved.q);
+
+                // Replace in caseStudy text if present
+                if (resolved.caseStudy && resolved.caseStudy.text) {
+                    resolved.caseStudy.text = replaceVars(resolved.caseStudy.text);
+                }
+
+                // Replace in options
+                if (resolved.options) {
+                    resolved.options = resolved.options.map(opt => replaceVars(opt));
+                }
+
+                // Replace in dragItems
+                if (resolved.dragItems) {
+                    resolved.dragItems = resolved.dragItems.map(item => replaceVars(item));
+                }
+
+                // Replace in dropZones
+                if (resolved.dropZones) {
+                    resolved.dropZones = resolved.dropZones.map(zone => replaceVars(zone));
+                }
+
+                // Replace in explanations
+                if (resolved.exp) {
+                    resolved.exp.correct = replaceVars(resolved.exp.correct);
+                    if (resolved.exp.incorrect) {
+                        for (let optKey in resolved.exp.incorrect) {
+                            resolved.exp.incorrect[optKey] = replaceVars(resolved.exp.incorrect[optKey]);
+                        }
+                    }
+                }
+
+                // Replace in powershellCmd
+                if (resolved.powershellCmd) {
+                    resolved.powershellCmd = replaceVars(resolved.powershellCmd);
+                }
+
+                return resolved;
+            });
+        }
+
         // START SESSION MAIN ROUTINE
         function startSession() {
             let pool = filterQuestionsPool();
             if (pool.length === 0) return;
 
-            activeQuestions = [...pool];
+            activeQuestions = resolveProceduralQuestions([...pool]);
             if (mixQuestionsRandomly) {
                 shuffleArray(activeQuestions);
             }
