@@ -2033,6 +2033,13 @@
     <script src="questions/compliance.js"></script>
     <script src="questions/tenant.js"></script>
     <script src="questions/powershell.js"></script>
+    <script src="templates/identity_templates.js"></script>
+    <script src="templates/exchange_templates.js"></script>
+    <script src="templates/defender_templates.js"></script>
+    <script src="templates/intune_templates.js"></script>
+    <script src="templates/compliance_templates.js"></script>
+    <script src="templates/tenant_templates.js"></script>
+    <script src="templates/powershell_templates.js"></script>
     <script>
         // GLOBAL STATE VARIABLES
         let activeTheme = 'dark';
@@ -2063,9 +2070,107 @@
         let localFavorites = [];
         let localHistory = [];
 
+        // PROCEDURAL TEMPLATE VARIANT GENERATOR
+        function expandTemplate(template, index) {
+            let resolved = JSON.parse(JSON.stringify(template));
+            resolved.id = `${template.id}_var_${index}`;
+            resolved.templated = false; // Mark as resolved
+
+            let chosenVars = {};
+            for (let varName in resolved.variables) {
+                const options = resolved.variables[varName];
+                const randomIndex = Math.floor(Math.random() * options.length);
+                chosenVars[varName] = options[randomIndex];
+            }
+
+            function replaceVars(str) {
+                if (typeof str !== 'string') return str;
+                for (let varName in chosenVars) {
+                    const regex = new RegExp(`{${varName}}`, 'g');
+                    str = str.replace(regex, chosenVars[varName]);
+                }
+                return str;
+            }
+
+            resolved.q = replaceVars(resolved.q);
+
+            if (resolved.caseStudy && resolved.caseStudy.text) {
+                resolved.caseStudy.text = replaceVars(resolved.caseStudy.text);
+            }
+
+            if (resolved.options) {
+                resolved.options = resolved.options.map(opt => replaceVars(opt));
+            }
+
+            if (resolved.dragItems) {
+                resolved.dragItems = resolved.dragItems.map(item => replaceVars(item));
+            }
+
+            if (resolved.dropZones) {
+                resolved.dropZones = resolved.dropZones.map(zone => replaceVars(zone));
+            }
+
+            if (resolved.exp) {
+                resolved.exp.correct = replaceVars(resolved.exp.correct);
+                if (resolved.exp.incorrect) {
+                    for (let optKey in resolved.exp.incorrect) {
+                        resolved.exp.incorrect[optKey] = replaceVars(resolved.exp.incorrect[optKey]);
+                    }
+                }
+            }
+
+            if (resolved.powershellCmd) {
+                resolved.powershellCmd = replaceVars(resolved.powershellCmd);
+            }
+
+            return {
+                resolved: resolved,
+                signature: JSON.stringify(chosenVars)
+            };
+        }
+
+        function generateVariantsFromTemplates() {
+            const allTemplates = [
+                ...(window.templatesIdentity || []),
+                ...(window.templatesExchange || []),
+                ...(window.templatesDefender || []),
+                ...(window.templatesIntune || []),
+                ...(window.templatesCompliance || []),
+                ...(window.templatesTenant || []),
+                ...(window.templatesPowershell || [])
+            ];
+
+            const generatedQuestions = [];
+
+            allTemplates.forEach(tpl => {
+                const signatures = new Set();
+                let attempts = 0;
+                let count = 0;
+                const targetVariantsCount = 10; // Generate up to 10 variants per template
+
+                let maxCombos = 1;
+                for (let v in tpl.variables) {
+                    maxCombos *= tpl.variables[v].length;
+                }
+                const variantsToGenerate = Math.min(targetVariantsCount, maxCombos);
+
+                while (count < variantsToGenerate && attempts < 100) {
+                    attempts++;
+                    const result = expandTemplate(tpl, count + 1);
+                    if (!signatures.has(result.signature)) {
+                        signatures.add(result.signature);
+                        generatedQuestions.push(result.resolved);
+                        count++;
+                    }
+                }
+            });
+
+            return generatedQuestions;
+        }
+
         // INIT METHOD
         window.addEventListener('DOMContentLoaded', () => {
-            questions = [
+            const staticPool = [
                 ...(window.questionsCaseStudies || []),
                 ...(window.questionsIdentity || []),
                 ...(window.questionsExchange || []),
@@ -2075,6 +2180,9 @@
                 ...(window.questionsTenant || []),
                 ...(window.questionsPowershell || [])
             ];
+
+            const generatedPool = generateVariantsFromTemplates();
+            questions = [...staticPool, ...generatedPool];
 
             loadLocalStorage();
             detectTheme();
