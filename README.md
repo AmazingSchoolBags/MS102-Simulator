@@ -14,9 +14,10 @@ Ce simulateur est une application Web monopage (Single Page Application) puremen
     *   *Mise en ordre* (Ordering) d'étapes de configuration.
     *   *Études de Cas* (Case Studies) avec écran partagé (scénario à gauche, questions à droite).
     *   *Complétion de PowerShell* (PowerShell autocomplete).
-*   **Moteur de Génération Procédurale** : 
-    *   Moteur de templates intégré permettant de varier dynamiquement les scénarios d'examen (ex: changements aléatoires de noms de locataires, licences Microsoft 365, groupes d'utilisateurs, règles PowerShell).
-    *   Force le raisonnement conceptuel au lieu de la simple mémorisation par cœur.
+*   **Moteur de Génération Procédurale de Modèles** : 
+    *   **Séparation stricte** entre les questions statiques de haute fidélité (dans `questions/`) et les patrons de questions génératifs (dans `templates/`).
+    *   **Expansion automatique à l'initialisation** : Lors du chargement de la page (`DOMContentLoaded`), le moteur compile chaque modèle et génère **10 variantes uniques** en piochant aléatoirement dans les variables déclarées (noms d'entreprises, licences, quotas, commandes PowerShell).
+    *   **Identifiant unique par variante** (ex: `q_identity_templated_001_var_3`) garantissant la persistance et le suivi de vos favoris et de votre historique.
 *   **3 Modes de Session** :
     *   **Entraînement** : Correction immédiate, explications détaillées des réponses correctes et des distracteurs, liens vers la documentation officielle Microsoft Learn, et scripts PowerShell associés.
     *   **Examen Réel** : Conditions réelles Pearson VUE, minuterie globale, questions masquées jusqu'à la soumission finale, et score uniquement à la fin.
@@ -40,7 +41,7 @@ Ce simulateur est une application Web monopage (Single Page Application) puremen
 
 ```text
 ├── index.html       # Interface utilisateur (CSS, structure HTML, logique JS, dashboard)
-├── questions/       # Banque de questions modularisée par catégorie
+├── questions/       # Banque de questions statiques fixes de haute fidélité
 │   ├── case_studies.js
 │   ├── identity.js
 │   ├── exchange.js
@@ -49,6 +50,14 @@ Ce simulateur est une application Web monopage (Single Page Application) puremen
 │   ├── compliance.js
 │   ├── tenant.js
 │   └── powershell.js
+├── templates/       # Modèles (Templates) de questions pour la génération procédurale
+│   ├── identity_templates.js
+│   ├── exchange_templates.js
+│   ├── defender_templates.js
+│   ├── intune_templates.js
+│   ├── compliance_templates.js
+│   ├── tenant_templates.js
+│   └── powershell_templates.js
 └── README.md        # Documentation du projet
 ```
 
@@ -63,7 +72,7 @@ Ce simulateur est une application Web monopage (Single Page Application) puremen
 
 ## 📝 Exigences couvertes (Microsoft Learn)
 
-La banque de questions intégrée dans `questions/` couvre l'ensemble du programme officiel MS-102 :
+La banque de questions intégrée couvre l'ensemble du programme officiel MS-102 :
 *   Déploiement et gestion d'un tenant Microsoft 365.
 *   Implémentation et gestion des identités et de la synchronisation (Microsoft Entra ID / Entra Connect).
 *   Gestion de la sécurité, de la conformité et des menaces (Microsoft Defender & Purview).
